@@ -1,16 +1,7 @@
 log.info("Successfully loaded " .. _ENV["!guid"] .. ".")
-params = {}
 mods["RoRRModdingToolkit-RoRR_Modding_Toolkit"].auto()
-mods.on_all_mods_loaded(function()
-    for k, v in pairs(mods) do
-        if type(v) == "table" and v.tomlfuncs then
-            Toml = v
-        end
-    end
-end)
 
 LastWet = -1.0
-BlockSinking = 0
 player = nil
 Initialize(function()
     Callback.add("onPlayerInit", "SinkFaster-onPlayerInit", function()
