@@ -1,0 +1,10 @@
+{
+	"name": "SinkFaster",
+	"version_number": "1.0.0",
+	"website_url": "https://github.com/Tizitendo/Onyx-ArtificerPlus",
+	"description": "Hold down to sink faster",
+	"dependencies": [
+		"ReturnOfModding-ReturnOfModding-1.0.48",
+		"RoRRModdingToolkit-RoRR_Modding_Toolkit-1.1.24"
+	]
+}
