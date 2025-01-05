@@ -7,7 +7,7 @@ mods.on_all_mods_loaded(function()
         end
     end
     params = {
-        SinkSpeed = 1.1,
+        SinkSpeed = 0.6,
         JumpToFloat = false
     }
     params = Toml.config_update(_ENV["!guid"], params) -- Load Save
@@ -18,6 +18,7 @@ local JumpToFloatMP = {}
 
 local LastWet = {}
 local player = {}
+local FasterSink = {}
 Initialize(function()
     local packetConfig = Packet.new()
     local JumpPacket = Packet.new()
@@ -33,6 +34,7 @@ Initialize(function()
             SinkSpeedMP[PlayerIndex] = params.SinkSpeed
             JumpToFloatMP[PlayerIndex] = params.JumpToFloat
             PlayerIndex = PlayerIndex + 1
+            FasterSink[1] = 0
         end
     end)
 
@@ -57,6 +59,7 @@ Initialize(function()
                     SinkSpeedMP[1] = params.SinkSpeed
                     JumpToFloatMP[1] = params.JumpToFloat
                     LastWet[1] = -1
+                    FasterSink[1] = 0
                 end
             end
         end
@@ -66,6 +69,7 @@ Initialize(function()
         JumpToFloatMP = {}
         player = {}
         LastWet = {}
+        FasterSink = {}
     end)
 
     packetConfig:onReceived(function(msg)
@@ -74,6 +78,7 @@ Initialize(function()
         SinkSpeedMP[msgplayer.m_id] = msg:read_float()
         JumpToFloatMP[msgplayer.m_id] = msg:read_byte()
         LastWet[msgplayer.m_id] = -1
+        FasterSink[msgplayer.m_id] = 0
 
         if gm._mod_net_isHost() then
             local msg = packetConfig:message_begin()
@@ -92,6 +97,13 @@ Initialize(function()
             player[PlayerId].wet = msg:read_int()
         end
     end)
+
+    Callback.add("onStageStart", "SinkFaster-onStageStart", function()
+        for i = 1, #player do
+            FasterSink[i] = 0
+        end
+    end)
+
 
     Callback.add("onPlayerStep", "SinkFaster-onPlayerStep", function(self)
         if gm._mod_net_isOnline() and gm._mod_net_isHost() then
@@ -112,20 +124,36 @@ Initialize(function()
                 if player[i].wet ~= nil and player[i].wet > LastWet[i] then
                     LastWet[i] = player[i].wet
                     if JumpToFloatMP[i] == true or JumpToFloatMP[i] == 1 then
-                        if player[i].moveUpHold == true or player[i].moveUpHold == 1 then
-                            player[i].pGravity1 = player[i].pGravity1_base
+                        if player[i].moveUpHold == false or player[i].moveUpHold == 0 and player[i].pVspeed > 0 then
+                            if FasterSink[i] == 0 then
+                                player[i].pGravity1 = player[i].pGravity1 + SinkSpeedMP[i]
+                                FasterSink[i] = 1
+                            end
                         else
-                            player[i].pGravity1 = SinkSpeedMP[i]
+                            if FasterSink[i] == 1 then
+                                FasterSink[i] = 0
+                                player[i].pGravity1 = player[i].pGravity1 - SinkSpeedMP[i]
+                            end
                         end
                     else
-                        if player[i].ropeDown == 1.0 or player[i].ropeDown == true then
-                            player[i].pGravity1 = SinkSpeedMP[i]
+                        if player[i].ropeDown == 1.0 or player[i].ropeDown == true and player[i].pVspeed > 0 then
+                            if FasterSink[i] == 0 then
+                                player[i].pGravity1 = player[i].pGravity1 + SinkSpeedMP[i]
+                                FasterSink[i] = 1
+                            end
                         else
-                            player[i].pGravity1 = player[i].pGravity1_base
+                            if FasterSink[i] == 1 then
+                                FasterSink[i] = 0
+                                player[i].pGravity1 = player[i].pGravity1 - SinkSpeedMP[i]
+                            end
                         end
                     end
                 else
-                    player[i].pGravity1 = player[i].pGravity1_base
+                    if player[i].wet == LastWet[i] and FasterSink[i] == 1 then
+                        LastWet[i] = LastWet[i] + 1
+                        player[i].pGravity1 = player[i].pGravity1 - SinkSpeedMP[i]
+                        FasterSink[i] = 0
+                    end
                 end
             end
         end
