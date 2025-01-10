@@ -1,6 +1,6 @@
 {
 	"name": "SinkFaster",
-	"version_number": "1.2.0",
+	"version_number": "1.2.1",
 	"website_url": "https://github.com/Tizitendo/0n_x-SinkFaster",
 	"description": "Hold down to sink faster",
 	"dependencies": [
