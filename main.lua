@@ -13,31 +13,24 @@ mods.on_all_mods_loaded(function()
     params = Toml.config_update(_ENV["!guid"], params) -- Load Save
 end)
 
-local SinkSpeedMP = {}
-local JumpToFloatMP = {}
-
-local LastWet = {}
-local player = {}
-local FasterSink = {}
 Initialize(function()
     local packetConfig = Packet.new()
     local JumpPacket = Packet.new()
-    local PlayerIndex = 1
-    Callback.add("onPlayerInit", "SinkFaster-onPlayerInit", function(self)
-        local PlayerId = self.m_id
-        if PlayerId == 0 then
-            PlayerId = 1
-        end
-        player[PlayerId] = Wrap.wrap(self)
-        LastWet[PlayerId] = -1
-        SinkSpeedMP[PlayerId] = params.SinkSpeed
-        JumpToFloatMP[PlayerId] = params.JumpToFloat
-        FasterSink[PlayerId] = 0
+
+    Callback.add(Callback.TYPE.onPlayerInit, "NoGeyserFallDamage-onGameStart", function(self)
+        local playerdata = Instance.wrap(self):get_data()
+        playerdata.LastWet = -1
+        playerdata.FasterSink = 0
+        playerdata.SinkSpeed = params.SinkSpeed
+        playerdata.JumpToFloat = params.JumpToFloat
+
+        self:onStatRecalc(function(actor)
+            actor:get_data().FasterSink = 0
+        end)
     end)
 
-    Callback.add("onGameStart", "SinkFaster-onGameStart", function()
-        player = {}
-        local function myFunc()
+    Callback.add(Callback.TYPE.onGameStart, "SinkFaster-onGameStart", function()
+        local function GameStart()
             if gm._mod_net_isOnline() then
                 if gm._mod_net_isClient() then
                     local msg = packetConfig:message_begin()
@@ -55,92 +48,81 @@ Initialize(function()
                 end
             end
         end
-        Alarm.create(myFunc, 60)
-        SinkSpeedMP = {}
-        JumpToFloatMP = {}
-        player = {}
-        LastWet = {}
-        FasterSink = {}
+        Alarm.create(GameStart, 2)
     end)
 
     packetConfig:onReceived(function(msg)
         local msgplayer = msg:read_instance()
-        player[msgplayer.m_id] = msgplayer
-        SinkSpeedMP[msgplayer.m_id] = msg:read_float()
-        JumpToFloatMP[msgplayer.m_id] = msg:read_byte()
-        LastWet[msgplayer.m_id] = -1
-        FasterSink[msgplayer.m_id] = 0
+        local playerdata = msgplayer:get_data()
+        playerdata.SinkSpeed = msg:read_float()
+        playerdata.JumpToFloat = msg:read_byte()
+        playerdata.LastWet = -1
+        playerdata.FasterSink = 0
 
         if gm._mod_net_isHost() then
             local msg = packetConfig:message_begin()
             msg:write_instance(msgplayer)
-            msg:write_float(SinkSpeedMP[msgplayer.m_id])
-            msg:write_byte(JumpToFloatMP[msgplayer.m_id])
+            msg:write_float(playerdata.SinkSpeed)
+            msg:write_byte(playerdata.JumpToFloat)
             msg:send_to_all()
         end
     end)
 
     JumpPacket:onReceived(function(msg)
-        local PlayerId = msg:read_byte()
-        if player[PlayerId] ~= nil then
-            player[PlayerId].moveUpHold = msg:read_byte()
-            player[PlayerId].ropeDown = msg:read_byte()
-            player[PlayerId].wet = msg:read_int()
-        end
+        local player = msg:read_instance()
+        player.moveUpHold = msg:read_byte()
+        player.ropeDown = msg:read_byte()
+        player.wet = msg:read_int()
     end)
 
     Callback.add("onPlayerStep", "SinkFaster-onPlayerStep", function(self)
+        local playerdata = Instance.wrap(self):get_data()
+        
         if gm._mod_net_isOnline() and gm._mod_net_isHost() then
-            for i = 1, #player do
-                if player[i] then
-                    local msg = JumpPacket:message_begin()
-                    msg:write_byte(player[i].m_id)
-                    msg:write_byte(player[i].moveUpHold)
-                    msg:write_byte(player[i].ropeDown)
-                    msg:write_int(player[i].wet)
-                    msg:send_to_all()
-                end
-            end
+            local msg = JumpPacket:message_begin()
+            msg:write_instance(Instance.wrap(self))
+            msg:write_byte(self.moveUpHold)
+            msg:write_byte(self.ropeDown)
+            msg:write_int(self.wet)
+            msg:send_to_all()
         end
 
-        for i = 1, #player do
-            if player[i].pGravity1 < 0.1 then
-                player[i].pGravity1 = 0.52
-                FasterSink[i] = 0
-            end
-            if player[i].wet ~= nil then
-                if player[i].wet > LastWet[i] then
-                    LastWet[i] = player[i].wet
-                    if gm.bool(JumpToFloatMP[i]) then
-                        if not gm.bool(player[i].moveUpHold) and player[i].pVspeed > 0 then
-                            if not gm.bool(FasterSink[i]) then
-                                FasterSink[i] = 1
-                                player[i].pGravity1 = player[i].pGravity1 + SinkSpeedMP[i]
-                            end
-                        else
-                            if gm.bool(FasterSink[i]) then
-                                FasterSink[i] = 0
-                                player[i].pGravity1 = player[i].pGravity1 - SinkSpeedMP[i]
-                            end
+        -- if self.pGravity1 < 0.1 then
+        --     self.pGravity1 = 0.52
+        --     playerdata.FasterSink = 0
+        -- end
+        if self.wet ~= nil then
+            if self.wet > playerdata.LastWet then
+                playerdata.LastWet = self.wet
+                if gm.bool(playerdata.JumpToFloat) then
+                    if not gm.bool(self.moveUpHold) and self.pVspeed > 0 then
+                        if not gm.bool(playerdata.FasterSink) then
+                            playerdata.FasterSink = 1
+                            self.pGravity1 = self.pGravity1 + playerdata.SinkSpeed
                         end
                     else
-                        if gm.bool(player[i].ropeDown) and player[i].pVspeed > 0 then
-                            if not gm.bool(FasterSink[i]) then
-                                player[i].pGravity1 = player[i].pGravity1 + SinkSpeedMP[i]
-                                FasterSink[i] = 1
-                            end
-                        else
-                            if gm.bool(FasterSink[i]) then
-                                FasterSink[i] = 0
-                                player[i].pGravity1 = player[i].pGravity1 - SinkSpeedMP[i]
-                            end
+                        if gm.bool(playerdata.FasterSink) then
+                            playerdata.FasterSink = 0
+                            self.pGravity1 = self.pGravity1 - playerdata.SinkSpeed
                         end
                     end
                 else
-                    if gm.bool(FasterSink[i]) then
-                        player[i].pGravity1 = player[i].pGravity1 - SinkSpeedMP[i]
-                        FasterSink[i] = 0
+                    if gm.bool(self.ropeDown) and self.pVspeed > 0 then
+                        if not gm.bool(playerdata.FasterSink) then
+                            self.pGravity1 = self.pGravity1 + playerdata.SinkSpeed
+                            playerdata.FasterSink = 1
+                        end
+                    else
+                        if gm.bool(playerdata.FasterSink) then
+                            playerdata.FasterSink = 0
+                            self.pGravity1 = self.pGravity1 - playerdata.SinkSpeed
+                        end
                     end
+                end
+            else
+                if gm.bool(playerdata.FasterSink) then
+                    self.pGravity1 = self.pGravity1 - playerdata.SinkSpeed
+                    playerdata.FasterSink = 0
                 end
             end
         end

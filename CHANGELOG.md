@@ -1,3 +1,6 @@
+## 1.2.2
+* fixed multiplayer crash
+
 ## 1.2.1
 * Hopefully fixed bug that sometimes shoots you in the sky after entering water
 
