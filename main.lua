@@ -21,12 +21,11 @@ Initialize(function()
         local playerdata = Instance.wrap(self):get_data()
         playerdata.LastWet = -1
         playerdata.FasterSink = 0
+        playerdata.moveUpHold = 0
+        playerdata.ropeDown = 0
+        playerdata.wet = 0
         playerdata.SinkSpeed = params.SinkSpeed
         playerdata.JumpToFloat = params.JumpToFloat
-
-        self:onStatRecalc(function(actor)
-            actor:get_data().FasterSink = 0
-        end)
     end)
 
     Callback.add(Callback.TYPE.onGameStart, "SinkFaster-onGameStart", function()
@@ -58,6 +57,10 @@ Initialize(function()
         playerdata.JumpToFloat = msg:read_byte()
         playerdata.LastWet = -1
         playerdata.FasterSink = 0
+        playerdata.moveUpHold = 0
+        playerdata.ropeDown = 0
+        playerdata.wet = 0
+        playerdata.FasterSink = 0
 
         if gm._mod_net_isHost() then
             local msg = packetConfig:message_begin()
@@ -69,60 +72,44 @@ Initialize(function()
     end)
 
     JumpPacket:onReceived(function(msg)
-        local player = msg:read_instance()
-        player.moveUpHold = msg:read_byte()
-        player.ropeDown = msg:read_byte()
-        player.wet = msg:read_int()
+        -- local player = msg:read_instance()
+        -- player.moveUpHold = msg:read_byte()
+        -- player.ropeDown = msg:read_byte()
+        -- player.wet = msg:read_int()
+        local playerdata = msg:read_instance():get_data()
+        playerdata.moveUpHold = msg:read_byte()
+        playerdata.ropeDown = msg:read_byte()
+        playerdata.wet = msg:read_int()
     end)
 
     Callback.add("onPlayerStep", "SinkFaster-onPlayerStep", function(self)
         local playerdata = Instance.wrap(self):get_data()
+        playerdata.moveUpHold = self.moveUpHold
+        playerdata.ropeDown = self.ropeDown
+        playerdata.wet = self.wet
         
         if gm._mod_net_isOnline() and gm._mod_net_isHost() then
             local msg = JumpPacket:message_begin()
             msg:write_instance(Instance.wrap(self))
-            msg:write_byte(self.moveUpHold)
-            msg:write_byte(self.ropeDown)
-            msg:write_int(self.wet)
+            msg:write_byte(playerdata.moveUpHold)
+            msg:write_byte(playerdata.ropeDown)
+            msg:write_int(playerdata.wet)
             msg:send_to_all()
         end
 
-        -- if self.pGravity1 < 0.1 then
-        --     self.pGravity1 = 0.52
-        --     playerdata.FasterSink = 0
-        -- end
-        if self.wet ~= nil then
-            if self.wet > playerdata.LastWet then
-                playerdata.LastWet = self.wet
-                if gm.bool(playerdata.JumpToFloat) then
-                    if not gm.bool(self.moveUpHold) and self.pVspeed > 0 then
-                        if not gm.bool(playerdata.FasterSink) then
-                            playerdata.FasterSink = 1
-                            self.pGravity1 = self.pGravity1 + playerdata.SinkSpeed
-                        end
-                    else
-                        if gm.bool(playerdata.FasterSink) then
-                            playerdata.FasterSink = 0
-                            self.pGravity1 = self.pGravity1 - playerdata.SinkSpeed
-                        end
-                    end
-                else
-                    if gm.bool(self.ropeDown) and self.pVspeed > 0 then
-                        if not gm.bool(playerdata.FasterSink) then
-                            self.pGravity1 = self.pGravity1 + playerdata.SinkSpeed
-                            playerdata.FasterSink = 1
-                        end
-                    else
-                        if gm.bool(playerdata.FasterSink) then
-                            playerdata.FasterSink = 0
-                            self.pGravity1 = self.pGravity1 - playerdata.SinkSpeed
-                        end
+        if playerdata.wet and playerdata.wet > playerdata.LastWet and self.pVspeed > 0 then
+            playerdata.LastWet = playerdata.wet
+            if gm.bool(playerdata.JumpToFloat) then
+                if not gm.bool(playerdata.moveUpHold) then
+                    if not gm.bool(playerdata.FasterSink) then
+                        self.pVspeed = self.pVspeed + playerdata.SinkSpeed
                     end
                 end
             else
-                if gm.bool(playerdata.FasterSink) then
-                    self.pGravity1 = self.pGravity1 - playerdata.SinkSpeed
-                    playerdata.FasterSink = 0
+                if gm.bool(playerdata.ropeDown) then
+                    if not gm.bool(playerdata.FasterSink) then
+                        self.pVspeed = self.pVspeed + playerdata.SinkSpeed
+                    end
                 end
             end
         end

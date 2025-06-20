@@ -1,3 +1,7 @@
+## 1.2.3
+* fixed multiplayer jump height being weird
+* moved back to adding speed directly to avoid sinkspeed being inconsistent
+
 ## 1.2.2
 * fixed multiplayer crash
 
